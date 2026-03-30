@@ -14,43 +14,38 @@ import generated.sdg.inventory.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 public class InventoryServiceImplementation extends InventoryMonitoringServiceGrpc.InventoryMonitoringServiceImplBase {
 
-    private final List<InventoryItem> inventory = new ArrayList<>();
+    private final InventoryRepository repository = new InventoryRepository();
 
-    public InventoryServiceImplementation() {
-
-        inventory.add(InventoryItem.newBuilder()
-                .setSku("MILK-1L")
-                .setName("Milk")
-                .setQuantityUnits(20)
-                .setExpiryEpochMs(Instant.now().plusSeconds(86400 * 2).toEpochMilli())
-                .build());
-
-        inventory.add(InventoryItem.newBuilder()
-                .setSku("BREAD")
-                .setName("Bread")
-                .setQuantityUnits(15)
-                .setExpiryEpochMs(Instant.now().plusSeconds(86400).toEpochMilli())
-                .build());
-    }
-
-    // UNARY RPC
+   // Server Streaming
     
     @Override
     public void getInventoryStatus(InventoryRequest request,
                                    StreamObserver<InventoryStatus> responseObserver) {
 
-        LogUtil.logger.info("Inventory request for store: {}", request.getStoreId());
+        if (request.getStoreId() == null || request.getStoreId().isEmpty()) {
+
+            LogUtil.warn("Invalid request: storeId is empty");
+
+            responseObserver.onError(
+                    Status.INVALID_ARGUMENT
+                            .withDescription("storeId is required")
+                            .asRuntimeException()
+            );
+            return;
+        }
+
+        LogUtil.info("Fetching inventory for store: " + request.getStoreId());
 
         try {
+            List<InventoryItem> items = repository.getAll();
+
             InventoryStatus response = InventoryStatus.newBuilder()
                     .setStoreId(request.getStoreId())
-                    .addAllItems(inventory)
+                    .addAllItems(items)
                     .setGeneratedAtEpochMs(System.currentTimeMillis())
                     .build();
 
@@ -58,7 +53,7 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
             responseObserver.onCompleted();
 
         } catch (Exception e) {
-            LogUtil.logger.error("Error fetching inventory", e);
+            LogUtil.error("Error fetching inventory", e);
 
             responseObserver.onError(
                     Status.INTERNAL
@@ -68,19 +63,24 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
         }
     }
 
+  
     // SERVER STREAMING RPC
     
     @Override
     public void streamExpiryAlerts(ExpiryAlertRequest request,
                                    StreamObserver<ExpiryAlert> responseObserver) {
 
-        LogUtil.logger.info("Streaming expiry alerts...");
+        LogUtil.info("Streaming expiry alerts...");
 
         try {
-            for (InventoryItem item : inventory) {
+            List<InventoryItem> items = repository.getAll();
 
-                long daysLeft = (item.getExpiryEpochMs() - System.currentTimeMillis())
-                        / (1000 * 60 * 60 * 24);
+            for (InventoryItem item : items) {
+
+                long daysLeft = Math.max(0,
+                        (item.getExpiryEpochMs() - System.currentTimeMillis())
+                                / (1000 * 60 * 60 * 24)
+                );
 
                 if (daysLeft <= request.getHorizonDays()) {
 
@@ -90,16 +90,18 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
                             .setCurrentQuantityUnits(item.getQuantityUnits())
                             .build();
 
+                    LogUtil.info("Sending alert for SKU: " + item.getSku());
+
                     responseObserver.onNext(alert);
 
-                    Thread.sleep(1000); // simula streaming real
+                    Thread.sleep(800); // Simulate streaming
                 }
             }
 
             responseObserver.onCompleted();
 
         } catch (Exception e) {
-            LogUtil.logger.error("Error in streaming alerts", e);
+            LogUtil.error("Error in streaming alerts", e);
 
             responseObserver.onError(
                     Status.INTERNAL
