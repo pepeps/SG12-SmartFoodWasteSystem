@@ -1,0 +1,29 @@
+# Maven
+target/
+*.log
+
+# Compiled files
+*.class
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# NetBeans
+nbproject/private/
+build/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+
+# Generated sources
+target/generated-sources/
+
+# Env files
+.env
