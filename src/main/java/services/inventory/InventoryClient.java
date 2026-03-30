@@ -25,20 +25,31 @@ public class InventoryClient {
         InventoryMonitoringServiceGrpc.InventoryMonitoringServiceBlockingStub stub =
                 InventoryMonitoringServiceGrpc.newBlockingStub(channel);
 
+        // =========================
         // UNARY
+        // =========================
+        System.out.println("\n=================================");
+        System.out.println("UNARY RPC → getInventoryStatus");
+        System.out.println("One request → One response");
+        System.out.println("=================================");
+
         InventoryRequest request = InventoryRequest.newBuilder()
                 .setStoreId("STORE-1")
                 .build();
 
         InventoryStatus response = stub.getInventoryStatus(request);
 
-        System.out.println("Inventory:");
         response.getItemsList().forEach(item ->
-                System.out.println(item.getSku() + " -> " + item.getQuantityUnits())
+                System.out.println("[UNARY RESPONSE] " + item.getSku() + " -> " + item.getQuantityUnits())
         );
 
-        // STREAMING
-        System.out.println("\nExpiry Alerts:");
+        // =========================
+        // SERVER STREAMING
+        // =========================
+        System.out.println("\n=================================");
+        System.out.println("SERVER STREAMING RPC → streamExpiryAlerts");
+        System.out.println("One request → Multiple responses");
+        System.out.println("=================================");
 
         ExpiryAlertRequest alertRequest = ExpiryAlertRequest.newBuilder()
                 .setHorizonDays(2)
@@ -46,7 +57,8 @@ public class InventoryClient {
 
         stub.streamExpiryAlerts(alertRequest)
                 .forEachRemaining(alert ->
-                        System.out.println(alert.getSku() + " expires in " + alert.getDaysToExpiry() + " days")
+                        System.out.println("[STREAM] " + alert.getSku()
+                                + " expires in " + alert.getDaysToExpiry() + " days")
                 );
 
         channel.shutdown();

@@ -20,11 +20,14 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
 
     private final InventoryRepository repository = new InventoryRepository();
 
-   // Server Streaming
-    
+    // =========================
+    // UNARY RPC
+    // =========================
     @Override
     public void getInventoryStatus(InventoryRequest request,
                                    StreamObserver<InventoryStatus> responseObserver) {
+
+        LogUtil.info("RPC TYPE: UNARY → getInventoryStatus called");
 
         if (request.getStoreId() == null || request.getStoreId().isEmpty()) {
 
@@ -37,8 +40,6 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
             );
             return;
         }
-
-        LogUtil.info("Fetching inventory for store: " + request.getStoreId());
 
         try {
             List<InventoryItem> items = repository.getAll();
@@ -63,14 +64,14 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
         }
     }
 
-  
+    // =========================
     // SERVER STREAMING RPC
-    
+    // =========================
     @Override
     public void streamExpiryAlerts(ExpiryAlertRequest request,
                                    StreamObserver<ExpiryAlert> responseObserver) {
 
-        LogUtil.info("Streaming expiry alerts...");
+        LogUtil.info("RPC TYPE: SERVER STREAMING → streamExpiryAlerts started");
 
         try {
             List<InventoryItem> items = repository.getAll();
@@ -90,11 +91,11 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
                             .setCurrentQuantityUnits(item.getQuantityUnits())
                             .build();
 
-                    LogUtil.info("Sending alert for SKU: " + item.getSku());
+                    LogUtil.info("STREAM EVENT → Sending alert for SKU: " + item.getSku());
 
                     responseObserver.onNext(alert);
 
-                    Thread.sleep(800); // Simulate streaming
+                    Thread.sleep(800);
                 }
             }
 
