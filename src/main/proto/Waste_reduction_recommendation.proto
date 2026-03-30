@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package sdg.recommendation;
+
+option java_multiple_files = true;
+option java_package = "generated.sdg.recommendation";
+option java_outer_classname = "WasteReductionRecommendationProto";
+
+// SERVICE
+
+service WasteReductionRecommendationService {
+
+  // Bidirectional Streaming
+  rpc LiveOptimisation (stream OptimisationInput) returns (stream Recommendation);
+
+  // Unary
+  rpc GenerateWasteReport (ReportRequest) returns (ReportResponse);
+}
+
+// MESSAGES
+
+message OptimisationInput {
+  string session_id = 1;
+  string store_id = 2;
+  InventorySnapshot inventory = 3;
+  ForecastSnapshot forecast = 4;
+  int64 timestamp_epoch_ms = 5;
+}
+
+message Recommendation {
+  string session_id = 1;
+  string store_id = 2;
+  Severity severity = 3;
+  string message = 4;
+  repeated string suggested_actions = 5;
+  repeated string affected_skus = 6;
+  int64 timestamp_epoch_ms = 7;
+}
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  INFO = 1;
+  WARNING = 2;
+  CRITICAL = 3;
+}
+
+message InventorySnapshot {
+  repeated InventoryItemLite items = 1;
+}
+
+message InventoryItemLite {
+  string sku = 1;
+  int32 quantity_units = 2;
+  int64 expiry_epoch_ms = 3;
+}
+
+message ForecastSnapshot {
+  repeated ForecastLite forecasts = 1;
+}
+
+message ForecastLite {
+  string sku = 1;
+  int32 forecast_days = 2;
+  int32 predicted_total_units = 3;
+  double confidence = 4;
+}
+
+message ReportRequest {
+  string store_id = 1;
+  int32 last_n_days = 2;
+}
+
+message ReportResponse {
+  string store_id = 1;
+  string summary = 2;
+  int32 near_expiry_units = 3;
+  int32 estimated_waste_avoided_units = 4;
+  int64 generated_at_epoch_ms = 5;
+}

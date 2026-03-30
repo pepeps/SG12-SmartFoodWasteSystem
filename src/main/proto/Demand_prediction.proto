@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package sdg.demand;
+
+option java_multiple_files = true;
+option java_package = "generated.sdg.demand";
+option java_outer_classname = "DemandPredictionProto";
+
+// SERVICE
+service DemandPredictionService {
+
+  // Client Streaming
+  rpc UploadSalesData (stream SalesRecord) returns (UploadSummary);
+
+  // Unary
+  rpc GetDemandForecast (ForecastRequest) returns (ForecastResponse);
+}
+
+// MESSAGES
+
+message SalesRecord {
+  string store_id = 1;
+  string sku = 2;
+  int32 units_sold = 3;
+  int64 sold_at_epoch_ms = 4;
+}
+
+message UploadSummary {
+  int32 accepted = 1;
+  int32 rejected = 2;
+  int64 processed_at_epoch_ms = 3;
+  string message = 4;
+}
+
+message ForecastRequest {
+  string store_id = 1;
+  string sku = 2;
+  int32 forecast_days = 3;
+}
+
+message ForecastResponse {
+  string store_id = 1;
+  string sku = 2;
+  repeated DailyForecast days = 3;
+  double confidence = 4;
+  int64 generated_at_epoch_ms = 5;
+}
+
+message DailyForecast {
+  int32 day_offset = 1;
+  int32 predicted_units = 2;
+}
