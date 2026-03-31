@@ -18,17 +18,20 @@ import java.util.List;
 
 public class InventoryServiceImplementation extends InventoryMonitoringServiceGrpc.InventoryMonitoringServiceImplBase {
 
+    // Repository that simulates a data source (in-memory)
     private final InventoryRepository repository = new InventoryRepository();
 
-    // =========================
+    
     // UNARY RPC
-    // =========================
+
     @Override
     public void getInventoryStatus(InventoryRequest request,
                                    StreamObserver<InventoryStatus> responseObserver) {
 
+        // Log the RPC type
         LogUtil.info("RPC TYPE: UNARY → getInventoryStatus called");
 
+        // Validate input
         if (request.getStoreId() == null || request.getStoreId().isEmpty()) {
 
             LogUtil.warn("Invalid request: storeId is empty");
@@ -42,18 +45,24 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
         }
 
         try {
+            // Fetch all inventory items
             List<InventoryItem> items = repository.getAll();
 
+            // Build response (single response → unary)
             InventoryStatus response = InventoryStatus.newBuilder()
                     .setStoreId(request.getStoreId())
                     .addAllItems(items)
                     .setGeneratedAtEpochMs(System.currentTimeMillis())
                     .build();
 
+            // Send response to client
             responseObserver.onNext(response);
+
+            // Complete the call
             responseObserver.onCompleted();
 
         } catch (Exception e) {
+
             LogUtil.error("Error fetching inventory", e);
 
             responseObserver.onError(
@@ -64,25 +73,28 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
         }
     }
 
-    // =========================
     // SERVER STREAMING RPC
-    // =========================
+ 
     @Override
     public void streamExpiryAlerts(ExpiryAlertRequest request,
                                    StreamObserver<ExpiryAlert> responseObserver) {
 
+        // Log streaming start
         LogUtil.info("RPC TYPE: SERVER STREAMING → streamExpiryAlerts started");
 
         try {
             List<InventoryItem> items = repository.getAll();
 
+            // Iterate through inventory items
             for (InventoryItem item : items) {
 
+                // Calculate days remaining until expiry
                 long daysLeft = Math.max(0,
                         (item.getExpiryEpochMs() - System.currentTimeMillis())
                                 / (1000 * 60 * 60 * 24)
                 );
 
+                // Only send alerts within requested horizon
                 if (daysLeft <= request.getHorizonDays()) {
 
                     ExpiryAlert alert = ExpiryAlert.newBuilder()
@@ -91,17 +103,22 @@ public class InventoryServiceImplementation extends InventoryMonitoringServiceGr
                             .setCurrentQuantityUnits(item.getQuantityUnits())
                             .build();
 
+                    // Log each streaming event
                     LogUtil.info("STREAM EVENT → Sending alert for SKU: " + item.getSku());
 
+                    // Send each message independently (streaming behavior)
                     responseObserver.onNext(alert);
 
+                    // Simulate real-time streaming delay
                     Thread.sleep(800);
                 }
             }
 
+            // Complete stream
             responseObserver.onCompleted();
 
         } catch (Exception e) {
+
             LogUtil.error("Error in streaming alerts", e);
 
             responseObserver.onError(

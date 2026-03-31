@@ -85,21 +85,14 @@ public class DemandClient {
             // Simulate delay between messages
             Thread.sleep(500);
         }
-
-        // =========================
+    
         // 6. COMPLETE STREAM
-        // =========================
-        // IMPORTANT: signals no more data will be sent
         requestObserver.onCompleted();
 
-        // =========================
         // 7. WAIT FOR RESPONSE
-        // =========================
         Thread.sleep(2000);
 
-        // =========================
         // 8. SHUTDOWN CHANNEL
-        // =========================
         channel.shutdown();
     }
 }
