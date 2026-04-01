@@ -9,123 +9,64 @@ package services.demand;
  * @author joseperez
  */
 
-import common.logging.LogUtil;
-import generated.sdg.demand.*;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
-import java.util.ArrayList;
-import java.util.List;
+import generated.sdg.demand.*;
+import io.grpc.stub.StreamObserver;
 
 public class DemandServiceImplementation extends DemandPredictionServiceGrpc.DemandPredictionServiceImplBase {
 
-  
-    // CLIENT STREAMING RPC
+    // =========================
+    // CLIENT STREAMING
+    // =========================
     @Override
     public StreamObserver<SalesRecord> uploadSalesData(StreamObserver<UploadSummary> responseObserver) {
 
-        // Log the start of a client streaming RPC
-        LogUtil.info("RPC TYPE: CLIENT STREAMING → uploadSalesData started");
+        return new StreamObserver<>() {
 
-        // Return a StreamObserver to receive data from the client
-        return new StreamObserver<SalesRecord>() {
-
-            // Tracking messages in memory
-            List<SalesRecord> records = new ArrayList<>();
-
-            int accepted = 0;
-            int rejected = 0;
+            int count = 0;
 
             @Override
             public void onNext(SalesRecord record) {
-
-                // This method is called every time the client sends a message
-
-                if (record.getSku().isEmpty()) {
-                    // Reject invalid records
-                    rejected++;
-                    LogUtil.warn("Rejected record: missing SKU");
-                    return;
-                }
-
-                // Accept valid record
-                records.add(record);
-                accepted++;
-
-                LogUtil.info("Received sales record → SKU: " + record.getSku());
+                System.out.println("[CLIENT STREAM] Received sale: " + record.getSku());
+                count++;
             }
 
             @Override
             public void onError(Throwable t) {
-                // Called if client terminates with an error
-                LogUtil.error("Error in client streaming", t);
+                System.out.println("Error receiving sales data");
             }
 
             @Override
             public void onCompleted() {
-
-                // Called when client finishes sending all messages
-                LogUtil.info("Client finished sending data");
-
-                // Build response summary
                 UploadSummary summary = UploadSummary.newBuilder()
-                        .setAccepted(accepted)
-                        .setRejected(rejected)
-                        .setProcessedAtEpochMs(System.currentTimeMillis())
-                        .setMessage("Processed " + accepted + " records")
+                        .setAccepted(count)
+                        .setRejected(0)
+                        .setMessage("Processed " + count + " records")
                         .build();
 
-                // Send ONE response back to the client
                 responseObserver.onNext(summary);
-
-                // Close the response stream
                 responseObserver.onCompleted();
             }
         };
     }
 
-    // UNARY RPC
+    // =========================
+    // UNARY
+    // =========================
     @Override
     public void getDemandForecast(ForecastRequest request,
                                  StreamObserver<ForecastResponse> responseObserver) {
 
-        // Log unary call
-        LogUtil.info("RPC TYPE: UNARY → getDemandForecast called");
+        System.out.println("[UNARY] Forecast request for " + request.getSku());
 
-        try {
+        ForecastResponse response = ForecastResponse.newBuilder()
+                .setSku(request.getSku())
+                .setConfidence(0.85)
+                .addDays(DailyForecast.newBuilder().setDayOffset(1).setPredictedUnits(10))
+                .addDays(DailyForecast.newBuilder().setDayOffset(2).setPredictedUnits(15))
+                .build();
 
-            // Simulated forecast logic
-            List<DailyForecast> forecastList = new ArrayList<>();
-
-            for (int i = 1; i <= request.getForecastDays(); i++) {
-
-                forecastList.add(DailyForecast.newBuilder()
-                        .setDayOffset(i)
-                        .setPredictedUnits(10 + i * 2) // simple prediction model
-                        .build());
-            }
-
-            ForecastResponse response = ForecastResponse.newBuilder()
-                    .setStoreId(request.getStoreId())
-                    .setSku(request.getSku())
-                    .addAllDays(forecastList)
-                    .setConfidence(0.85)
-                    .setGeneratedAtEpochMs(System.currentTimeMillis())
-                    .build();
-
-            // Send response
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-
-        } catch (Exception e) {
-
-            LogUtil.error("Error generating forecast", e);
-
-            responseObserver.onError(
-                    Status.INTERNAL
-                            .withDescription("Forecast error")
-                            .asRuntimeException()
-            );
-        }
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
     }
 }

@@ -9,90 +9,131 @@ package services.demand;
  * @author joseperez
  */
 
+import common.jmdns.JmDNSServiceDiscovery;
 import generated.sdg.demand.*;
+
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 
+import javax.jmdns.ServiceInfo;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 public class DemandClient {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws Exception {
+        int port;
+        
+
+// 1. use discovery object to find Demand service
+        JmDNSServiceDiscovery discovery = new JmDNSServiceDiscovery();
+
+        ServiceInfo serviceInfo =
+                discovery.discoverService(
+                        "_demand._tcp.local.",
+                        "DemandService",
+                        5000
+                );
+
+       if (serviceInfo == null) {
+            System.out.println("⚠ JmDNS failed → fallback to localhost:50051");
+            port = 50052;
+        } else {
+            port = serviceInfo.getPort();
+            System.out.println("✅ Service found via JmDNS at port: " + port);
+        }
 
        
-        // 1. CREATE gRPC CHANNEL
-     
+        System.out.println("✅ Demand Service found on port: " + port);
+
+        // =========================
+        // 2. CHANNEL
+        // =========================
         ManagedChannel channel = ManagedChannelBuilder
-                .forAddress("localhost", 50052)
+                .forAddress("localhost", port)
                 .usePlaintext()
                 .build();
 
-      
-        // Client streaming requires an asynchronous stub
-        DemandPredictionServiceGrpc.DemandPredictionServiceStub stub =
+        // =========================
+        // 3. CLIENT STREAMING
+        // =========================
+        System.out.println("\n=== CLIENT STREAMING: uploadSalesData ===");
+
+        DemandPredictionServiceGrpc.DemandPredictionServiceStub asyncStub =
                 DemandPredictionServiceGrpc.newStub(channel);
 
-        System.out.println("\n=================================");
-        System.out.println("CLIENT STREAMING RPC → uploadSalesData");
-        System.out.println("Multiple requests → One response");
-        System.out.println("=================================");
+        CountDownLatch latch = new CountDownLatch(1);
 
-      
-        // This handles the server's response (only once)
         StreamObserver<UploadSummary> responseObserver = new StreamObserver<>() {
 
             @Override
             public void onNext(UploadSummary summary) {
-                System.out.println("\n=== SERVER RESPONSE ===");
-                System.out.println("Accepted: " + summary.getAccepted());
-                System.out.println("Rejected: " + summary.getRejected());
-                System.out.println("Message: " + summary.getMessage());
+                System.out.println("[SUMMARY] " + summary.getMessage());
             }
 
             @Override
             public void onError(Throwable t) {
-                System.out.println("Error: " + t.getMessage());
+                System.out.println("❌ Error: " + t.getMessage());
+                latch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                System.out.println("Stream completed");
+                System.out.println("✅ Upload completed");
+                latch.countDown();
             }
         };
 
-
-    
-        // This is used to send data to the server
         StreamObserver<SalesRecord> requestObserver =
-                stub.uploadSalesData(responseObserver);
+                asyncStub.uploadSalesData(responseObserver);
 
-      
-    // Simulate sending multiple messages
-       
-        for (int i = 0; i < 5; i++) {
+        for (int i = 1; i <= 3; i++) {
 
             SalesRecord record = SalesRecord.newBuilder()
                     .setStoreId("STORE-1")
-                    .setSku("MILK-1L")
-                    .setUnitsSold(5 + i)
+                    .setSku("ITEM-" + i)
+                    .setUnitsSold(5)
                     .setSoldAtEpochMs(System.currentTimeMillis())
                     .build();
 
-            System.out.println("Sending record " + i);
-
-            // Send each message to the server
+            System.out.println("[SEND] " + record.getSku());
             requestObserver.onNext(record);
 
-            // Simulate delay between messages
-            Thread.sleep(500);
+            Thread.sleep(300);
         }
-    
-        // 6. COMPLETE STREAM
+
         requestObserver.onCompleted();
+        latch.await(5, TimeUnit.SECONDS);
 
-        // 7. WAIT FOR RESPONSE
-        Thread.sleep(2000);
+        // =========================
+        // 4. UNARY
+        // =========================
+        System.out.println("\n=== UNARY: getDemandForecast ===");
 
-        // 8. SHUTDOWN CHANNEL
+        DemandPredictionServiceGrpc.DemandPredictionServiceBlockingStub blockingStub =
+                DemandPredictionServiceGrpc.newBlockingStub(channel);
+
+        ForecastResponse forecast =
+                blockingStub.getDemandForecast(
+                        ForecastRequest.newBuilder()
+                                .setStoreId("STORE-1")
+                                .setSku("ITEM-1")
+                                .setForecastDays(3)
+                                .build()
+                );
+
+        System.out.println("[FORECAST] SKU: " + forecast.getSku());
+
+        forecast.getDaysList().forEach(day ->
+                System.out.println("Day " + day.getDayOffset()
+                        + " → " + day.getPredictedUnits())
+        );
+
+        // =========================
+        // 5. CLEANUP
+        // =========================
         channel.shutdown();
+        discovery.close();
     }
 }

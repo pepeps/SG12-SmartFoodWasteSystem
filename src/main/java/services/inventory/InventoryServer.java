@@ -9,27 +9,36 @@ package services.inventory;
  * @author joseperez
  */
 
+import common.jmdns.JmDNSServiceRegister;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 public class InventoryServer {
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
 
         int port = 50051;
 
-        Server server = ServerBuilder.forPort(port)
-                .addService(new InventoryServiceImplementation())
-                .build()
-                .start();
+        try {
+            Server server = ServerBuilder.forPort(port)
+                    .addService(new InventoryServiceImplementation())
+                    .build()
+                    .start();
 
-        System.out.println("Inventory Service running on port " + port);
+            System.out.println("***** Inventory Server started on port " + port);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Shutting down Inventory Server...");
-            server.shutdown();
-        }));
+           
+            JmDNSServiceRegister register = JmDNSServiceRegister.getInstance();
+            register.registerService(
+                    "_inventory._tcp.local.",   // TYPE
+                    "InventoryService",         // NAME
+                    port
+            );
 
-        server.awaitTermination();
+            server.awaitTermination();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

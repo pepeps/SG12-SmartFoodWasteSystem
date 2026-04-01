@@ -9,73 +9,110 @@ package services.inventory;
  * @author joseperez
  */
 
+import common.jmdns.JmDNSServiceDiscovery;
 import generated.sdg.inventory.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+
+import javax.jmdns.ServiceInfo;
 
 public class InventoryClient {
 
     public static void main(String[] args) {
 
-       
-        // 1. CREATE gRPC CHANNEL
-        
+        int port;
+
+        // =========================
+        // 1. SERVICE DISCOVERY (JmDNS)
+        // =========================
+        JmDNSServiceDiscovery discovery = new JmDNSServiceDiscovery();
+
+        ServiceInfo serviceInfo = discovery.discoverService(
+                "_inventory._tcp.local.",   // MUST match server
+                "InventoryService",         // MUST match server
+                5000                        // timeout (ms)
+        );
+
+        if (serviceInfo == null) {
+            System.out.println("⚠ JmDNS failed → fallback to localhost:50051");
+            port = 50051;
+        } else {
+            port = serviceInfo.getPort();
+            System.out.println("✅ Service found via JmDNS at port: " + port);
+        }
+
+        // IMPORTANT → close JmDNS after discovery
+        discovery.close();
+
+        // =========================
+        // 2. CREATE gRPC CHANNEL
+        // =========================
         ManagedChannel channel = ManagedChannelBuilder
-                .forAddress("localhost", 50051) // Inventory server port
-                .usePlaintext() // No SSL for local development
+                .forAddress("localhost", port)
+                .usePlaintext()
                 .build();
 
-       
-        // 2. CREATE BLOCKING STUB
-      
-        // Blocking stub is used for unary and server streaming
+        // =========================
+        // 3. CREATE BLOCKING STUB
+        // =========================
         InventoryMonitoringServiceGrpc.InventoryMonitoringServiceBlockingStub stub =
                 InventoryMonitoringServiceGrpc.newBlockingStub(channel);
 
-        
-        // 3. UNARY RPC CALL
-      
+        // =========================
+        // 4. UNARY RPC
+        // =========================
         System.out.println("\n=================================");
         System.out.println("UNARY RPC → getInventoryStatus");
         System.out.println("One request → One response");
         System.out.println("=================================");
 
-        // Build request
-        InventoryRequest request = InventoryRequest.newBuilder()
-                .setStoreId("STORE-1")
-                .build();
+        try {
+            InventoryRequest request = InventoryRequest.newBuilder()
+                    .setStoreId("STORE-1")
+                    .build();
 
-        // Call unary RPC
-        InventoryStatus response = stub.getInventoryStatus(request);
+            InventoryStatus response = stub.getInventoryStatus(request);
 
-        // Print response
-        response.getItemsList().forEach(item ->
-                System.out.println("[UNARY RESPONSE] " + item.getSku() +
-                        " -> " + item.getQuantityUnits())
-        );
+            response.getItemsList().forEach(item ->
+                    System.out.println("[UNARY RESPONSE] "
+                            + item.getSku() + " → "
+                            + item.getQuantityUnits())
+            );
 
-        
-        // 4. SERVER STREAMING RPC
-        
+        } catch (Exception e) {
+            System.out.println("Error in UNARY call: " + e.getMessage());
+        }
+
+        // =========================
+        // 5. SERVER STREAMING RPC
+        // =========================
         System.out.println("\n=================================");
         System.out.println("SERVER STREAMING RPC → streamExpiryAlerts");
         System.out.println("One request → Multiple responses");
         System.out.println("=================================");
 
-        // Build streaming request
-        ExpiryAlertRequest alertRequest = ExpiryAlertRequest.newBuilder()
-                .setHorizonDays(2)
-                .build();
+        try {
+            ExpiryAlertRequest alertRequest = ExpiryAlertRequest.newBuilder()
+                    .setHorizonDays(2)
+                    .build();
 
-        // Call streaming RPC
-        stub.streamExpiryAlerts(alertRequest)
-                .forEachRemaining(alert ->
-                        System.out.println("[STREAM] " + alert.getSku()
-                                + " expires in " + alert.getDaysToExpiry() + " days")
-                );
+            stub.streamExpiryAlerts(alertRequest)
+                    .forEachRemaining(alert ->
+                            System.out.println("[STREAM] "
+                                    + alert.getSku()
+                                    + " expires in "
+                                    + alert.getDaysToExpiry() + " days")
+                    );
 
-        // 5. SHUTDOWN CHANNEL
-        
+        } catch (Exception e) {
+            System.out.println("Error in STREAM call: " + e.getMessage());
+        }
+
+        // =========================
+        // 6. SHUTDOWN
+        // =========================
         channel.shutdown();
+
+        System.out.println("\nClient finished execution.");
     }
 }

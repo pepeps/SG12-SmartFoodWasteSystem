@@ -9,56 +9,86 @@ package services.recomendation;
  * @author joseperez
  */
 
+import common.jmdns.JmDNSServiceDiscovery;
 import generated.sdg.recommendation.*;
+
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 
+import javax.jmdns.ServiceInfo;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 public class RecommendationClient {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws Exception {
+        int port;
+        // =========================
+        // 1. DISCOVERY (YOUR CLASS)
+        // =========================
+        JmDNSServiceDiscovery discovery = new JmDNSServiceDiscovery();
 
+        ServiceInfo serviceInfo =
+                discovery.discoverService(
+                        "_recommendation._tcp.local.",
+                        "RecommendationService",
+                        5000
+                );
+
+        if (serviceInfo == null) {
+            System.out.println("⚠ JmDNS failed → fallback to localhost:50051");
+            port = 50053;
+        } else {
+            port = serviceInfo.getPort();
+            System.out.println("✅ Service found via JmDNS at port: " + port);
+        }
+
+        // IMPORTANT → close JmDNS after discovery
+        System.out.println("✅ Recommendation Service found on port: " + port);
+
+        // =========================
+        // 2. CHANNEL
+        // =========================
         ManagedChannel channel = ManagedChannelBuilder
-                .forAddress("localhost", 50053)
+                .forAddress("localhost", port)
                 .usePlaintext()
                 .build();
 
-        WasteReductionRecommendationServiceGrpc.WasteReductionRecommendationServiceStub stub =
+        // =========================
+        // 3. BIDI STREAMING
+        // =========================
+        System.out.println("\n=== BIDI STREAM: liveOptimisation ===");
+
+        WasteReductionRecommendationServiceGrpc.WasteReductionRecommendationServiceStub asyncStub =
                 WasteReductionRecommendationServiceGrpc.newStub(channel);
 
-        System.out.println("\n=================================");
-        System.out.println("BIDIRECTIONAL STREAMING RPC → liveOptimisation");
-        System.out.println("Client ⇄ Server (real-time communication)");
-        System.out.println("=================================");
+        CountDownLatch latch = new CountDownLatch(1);
 
-        // RESPONSE OBSERVER (SERVER → CLIENT)
         StreamObserver<Recommendation> responseObserver = new StreamObserver<>() {
 
             @Override
             public void onNext(Recommendation rec) {
-
-                System.out.println("[SERVER RESPONSE]");
-                System.out.println("Message: " + rec.getMessage());
-                System.out.println("Severity: " + rec.getSeverity());
+                System.out.println("[RECOMMENDATION] " + rec.getMessage());
             }
 
             @Override
             public void onError(Throwable t) {
-                System.out.println("Error: " + t.getMessage());
+                System.out.println("❌ Error: " + t.getMessage());
+                latch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                System.out.println("Stream completed");
+                System.out.println("✅ Stream completed");
+                latch.countDown();
             }
         };
 
-        // REQUEST OBSERVER (CLIENT → SERVER)
         StreamObserver<OptimisationInput> requestObserver =
-                stub.liveOptimisation(responseObserver);
+                asyncStub.liveOptimisation(responseObserver);
 
-        // SEND MULTIPLE MESSAGES
-        for (int i = 0; i < 3; i++) {
+        for (int i = 1; i <= 3; i++) {
 
             OptimisationInput input = OptimisationInput.newBuilder()
                     .setSessionId("SESSION-1")
@@ -66,18 +96,37 @@ public class RecommendationClient {
                     .setTimestampEpochMs(System.currentTimeMillis())
                     .build();
 
-            System.out.println("Sending optimisation input " + i);
-
+            System.out.println("[SEND] Optimisation batch " + i);
             requestObserver.onNext(input);
 
-            Thread.sleep(1000);
+            Thread.sleep(500);
         }
 
-        // Finish stream
         requestObserver.onCompleted();
+        latch.await(5, TimeUnit.SECONDS);
 
-        Thread.sleep(2000);
+        // =========================
+        // 4. UNARY
+        // =========================
+        System.out.println("\n=== UNARY: generateWasteReport ===");
 
+        WasteReductionRecommendationServiceGrpc.WasteReductionRecommendationServiceBlockingStub blockingStub =
+                WasteReductionRecommendationServiceGrpc.newBlockingStub(channel);
+
+        ReportResponse report =
+                blockingStub.generateWasteReport(
+                        ReportRequest.newBuilder()
+                                .setStoreId("STORE-1")
+                                .setLastNDays(7)
+                                .build()
+                );
+
+        System.out.println("[REPORT] " + report.getSummary());
+
+        // =========================
+        // 5. CLEANUP
+        // =========================
         channel.shutdown();
+        discovery.close();
     }
 }

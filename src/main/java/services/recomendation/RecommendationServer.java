@@ -9,27 +9,38 @@ package services.recomendation;
  * @author joseperez
  */
 
+import common.jmdns.JmDNSServiceRegister;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 public class RecommendationServer {
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
 
         int port = 50053;
 
-        Server server = ServerBuilder.forPort(port)
-                .addService(new RecommendationServiceImplementation())
-                .build()
-                .start();
+        try {
+            Server server = ServerBuilder.forPort(port)
+                    .addService(new RecommendationServiceImplementation())
+                    .build()
+                    .start();
 
-        System.out.println("Recommendation Service running on port " + port);
+            System.out.println("***** Recommendation Server started on port " + port);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Shutting down Recommendation Server...");
-            server.shutdown();
-        }));
+            // 🔥 DISCOVERY REGISTRATION
+            JmDNSServiceRegister register = JmDNSServiceRegister.getInstance();
+            register.registerService(
+                    "_recommendation._tcp.local.",
+                    "RecommendationService",
+                    port
+            );
 
-        server.awaitTermination();
+            System.out.println("RecommendationService registered via JmDNS");
+
+            server.awaitTermination();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
