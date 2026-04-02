@@ -22,9 +22,7 @@ public class InventoryClient {
 
         int port;
 
-        // =========================
         // 1. SERVICE DISCOVERY (JmDNS)
-        // =========================
         JmDNSServiceDiscovery discovery = new JmDNSServiceDiscovery();
 
         ServiceInfo serviceInfo = discovery.discoverService(
@@ -39,28 +37,24 @@ public class InventoryClient {
         } else {
             port = serviceInfo.getPort();
             System.out.println("✅ Service found via JmDNS at port: " + port);
+            
         }
 
         // IMPORTANT → close JmDNS after discovery
         discovery.close();
 
-        // =========================
         // 2. CREATE gRPC CHANNEL
-        // =========================
+       
         ManagedChannel channel = ManagedChannelBuilder
                 .forAddress("localhost", port)
                 .usePlaintext()
                 .build();
 
-        // =========================
         // 3. CREATE BLOCKING STUB
-        // =========================
         InventoryMonitoringServiceGrpc.InventoryMonitoringServiceBlockingStub stub =
                 InventoryMonitoringServiceGrpc.newBlockingStub(channel);
 
-        // =========================
         // 4. UNARY RPC
-        // =========================
         System.out.println("\n=================================");
         System.out.println("UNARY RPC → getInventoryStatus");
         System.out.println("One request → One response");
@@ -83,9 +77,7 @@ public class InventoryClient {
             System.out.println("Error in UNARY call: " + e.getMessage());
         }
 
-        // =========================
         // 5. SERVER STREAMING RPC
-        // =========================
         System.out.println("\n=================================");
         System.out.println("SERVER STREAMING RPC → streamExpiryAlerts");
         System.out.println("One request → Multiple responses");
@@ -108,9 +100,7 @@ public class InventoryClient {
             System.out.println("Error in STREAM call: " + e.getMessage());
         }
 
-        // =========================
         // 6. SHUTDOWN
-        // =========================
         channel.shutdown();
 
         System.out.println("\nClient finished execution.");

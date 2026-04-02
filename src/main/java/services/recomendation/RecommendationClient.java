@@ -24,9 +24,7 @@ public class RecommendationClient {
 
     public static void main(String[] args) throws Exception {
         int port;
-        // =========================
         // 1. DISCOVERY (YOUR CLASS)
-        // =========================
         JmDNSServiceDiscovery discovery = new JmDNSServiceDiscovery();
 
         ServiceInfo serviceInfo =
@@ -47,17 +45,13 @@ public class RecommendationClient {
         // IMPORTANT → close JmDNS after discovery
         System.out.println("✅ Recommendation Service found on port: " + port);
 
-        // =========================
-        // 2. CHANNEL
-        // =========================
+
         ManagedChannel channel = ManagedChannelBuilder
                 .forAddress("localhost", port)
                 .usePlaintext()
                 .build();
 
-        // =========================
         // 3. BIDI STREAMING
-        // =========================
         System.out.println("\n=== BIDI STREAM: liveOptimisation ===");
 
         WasteReductionRecommendationServiceGrpc.WasteReductionRecommendationServiceStub asyncStub =
@@ -105,9 +99,7 @@ public class RecommendationClient {
         requestObserver.onCompleted();
         latch.await(5, TimeUnit.SECONDS);
 
-        // =========================
         // 4. UNARY
-        // =========================
         System.out.println("\n=== UNARY: generateWasteReport ===");
 
         WasteReductionRecommendationServiceGrpc.WasteReductionRecommendationServiceBlockingStub blockingStub =
@@ -123,9 +115,7 @@ public class RecommendationClient {
 
         System.out.println("[REPORT] " + report.getSummary());
 
-        // =========================
         // 5. CLEANUP
-        // =========================
         channel.shutdown();
         discovery.close();
     }

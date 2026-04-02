@@ -44,7 +44,7 @@ public class OrchestratorGUI extends JFrame {
     }
 
     private JPanel buildTopControls() {
-        JPanel panel = new JPanel(new GridLayout(2, 1, 8, 8));
+        JPanel panel = new JPanel(new GridLayout(2, 1, 8, 8));// create panel frame
 
         JPanel serverPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         serverPanel.setBorder(new TitledBorder("Server Controls"));
@@ -64,7 +64,8 @@ public class OrchestratorGUI extends JFrame {
 
         JPanel clientPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         clientPanel.setBorder(new TitledBorder("Client Controls"));
-
+        
+        //Create buttons to trigger services clients
         JButton runInventoryClientBtn = new JButton("Run Inventory Client");
         JButton runDemandClientBtn = new JButton("Run Demand Client");
         JButton runRecommendationClientBtn = new JButton("Run Recommendation Client");
@@ -147,40 +148,41 @@ public class OrchestratorGUI extends JFrame {
             }
         }));
 
-        runFullFlowBtn.addActionListener(e -> runAsync(() -> {
-            LogUtil.info("Starting full flow...");
-            appendPanel(inventoryArea, "Running full flow - Inventory step...");
-            try {
-                services.inventory.InventoryClient.main(new String[]{});
-                appendPanel(inventoryArea, "Inventory step completed.");
-            } catch (Exception ex) {
-                appendPanel(inventoryArea, "Inventory step failed: " + ex.getMessage());
-                LogUtil.error("Inventory step failed", ex);
-                return;
-            }
+        
+        runFullFlowBtn.addActionListener(e -> {
 
-            appendPanel(demandArea, "Running full flow - Demand step...");
-            try {
-                services.demand.DemandClient.main(new String[]{});
-                appendPanel(demandArea, "Demand step completed.");
-            } catch (Exception ex) {
-                appendPanel(demandArea, "Demand step failed: " + ex.getMessage());
-                LogUtil.error("Demand step failed", ex);
-                return;
-            }
+    LogUtil.info("🚀 Starting FULL SYSTEM FLOW...");
 
-            appendPanel(recommendationArea, "Running full flow - Recommendation step...");
-            try {
-                services.recomendation.RecommendationClient.main(new String[]{});
-                appendPanel(recommendationArea, "Recommendation step completed.");
-            } catch (Exception ex) {
-                appendPanel(recommendationArea, "Recommendation step failed: " + ex.getMessage());
-                LogUtil.error("Recommendation step failed", ex);
-                return;
-            }
+    new Thread(() -> {
+        try {
+            // 1. INVENTORY
+         
+            LogUtil.info("▶ Starting Inventory Client...");
+            services.inventory.InventoryClient.main(new String[]{});
 
-            LogUtil.info("Full flow completed successfully.");
-        }));
+            Thread.sleep(1500); // allow service processing
+
+       
+            // 2. DEMAND
+          
+            LogUtil.info("▶ Starting Demand Client...");
+            services.demand.DemandClient.main(new String[]{});
+
+            Thread.sleep(1500);
+
+           
+            // 3. RECOMMENDATION
+    
+            LogUtil.info("▶ Starting Recommendation Client...");
+            services.recomendation.RecommendationClient.main(new String[]{});
+
+            LogUtil.info("✅ Full system flow completed");
+
+        } catch (Exception ex) {
+            LogUtil.error("❌ Error running full flow", ex);
+        }
+    }).start();
+});
 
         panel.add(serverPanel);
         panel.add(clientPanel);

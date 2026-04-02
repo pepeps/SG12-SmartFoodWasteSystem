@@ -15,9 +15,8 @@ import io.grpc.stub.StreamObserver;
 
 public class DemandServiceImplementation extends DemandPredictionServiceGrpc.DemandPredictionServiceImplBase {
 
-    // =========================
+   
     // CLIENT STREAMING
-    // =========================
     @Override
     public StreamObserver<SalesRecord> uploadSalesData(StreamObserver<UploadSummary> responseObserver) {
 
@@ -50,9 +49,8 @@ public class DemandServiceImplementation extends DemandPredictionServiceGrpc.Dem
         };
     }
 
-    // =========================
+
     // UNARY
-    // =========================
     @Override
     public void getDemandForecast(ForecastRequest request,
                                  StreamObserver<ForecastResponse> responseObserver) {

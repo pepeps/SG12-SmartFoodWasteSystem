@@ -10,6 +10,7 @@ package services.demand;
  */
 
 import common.jmdns.JmDNSServiceDiscovery;
+import common.logging.LogUtil;
 import generated.sdg.demand.*;
 
 import io.grpc.ManagedChannel;
@@ -24,9 +25,8 @@ public class DemandClient {
 
     public static void main(String[] args) throws Exception {
         int port;
-        
 
-// 1. use discovery object to find Demand service
+        // 1. DISCOVERY
         JmDNSServiceDiscovery discovery = new JmDNSServiceDiscovery();
 
         ServiceInfo serviceInfo =
@@ -36,16 +36,20 @@ public class DemandClient {
                         5000
                 );
 
-       if (serviceInfo == null) {
-            System.out.println("⚠ JmDNS failed → fallback to localhost:50051");
+        if (serviceInfo == null) {
+            String msg = "⚠ JmDNS failed → fallback to localhost:50052";
+            System.out.println(msg);
             port = 50052;
         } else {
             port = serviceInfo.getPort();
-            System.out.println("✅ Service found via JmDNS at port: " + port);
+            String msg = "✅ Service found via JmDNS at port: " + port;
+            System.out.println(msg);
+            LogUtil.info(msg);
         }
 
-       
-        System.out.println("✅ Demand Service found on port: " + port);
+        String msgFound = "✅ Demand Service found on port: " + port;
+        System.out.println(msgFound);
+        LogUtil.info(msgFound);
 
         // =========================
         // 2. CHANNEL
@@ -58,7 +62,9 @@ public class DemandClient {
         // =========================
         // 3. CLIENT STREAMING
         // =========================
-        System.out.println("\n=== CLIENT STREAMING: uploadSalesData ===");
+        String streamingMsg = "\n=== CLIENT STREAMING: uploadSalesData ===";
+        System.out.println(streamingMsg);
+        LogUtil.info(streamingMsg);
 
         DemandPredictionServiceGrpc.DemandPredictionServiceStub asyncStub =
                 DemandPredictionServiceGrpc.newStub(channel);
@@ -69,18 +75,24 @@ public class DemandClient {
 
             @Override
             public void onNext(UploadSummary summary) {
-                System.out.println("[SUMMARY] " + summary.getMessage());
+                String msg = "[SUMMARY] " + summary.getMessage();
+                System.out.println(msg);
+                LogUtil.info(msg);
             }
 
             @Override
             public void onError(Throwable t) {
-                System.out.println("❌ Error: " + t.getMessage());
+                String msg = "❌ Error: " + t.getMessage();
+                System.out.println(msg);
+                LogUtil.error(msg, t);
                 latch.countDown();
             }
 
             @Override
             public void onCompleted() {
-                System.out.println("✅ Upload completed");
+                String msg = "✅ Upload completed";
+                System.out.println(msg);
+                LogUtil.info(msg);
                 latch.countDown();
             }
         };
@@ -97,11 +109,18 @@ public class DemandClient {
                     .setSoldAtEpochMs(System.currentTimeMillis())
                     .build();
 
-            System.out.println("[SEND] " + record.getSku());
+            String sendMsg = "[SEND] " + record.getSku();
+            System.out.println(sendMsg);
+            LogUtil.info(sendMsg);
+
             requestObserver.onNext(record);
 
             Thread.sleep(300);
         }
+
+        String closeMsg = "📤 Closing stream...";
+        System.out.println(closeMsg);
+        LogUtil.info(closeMsg);
 
         requestObserver.onCompleted();
         latch.await(5, TimeUnit.SECONDS);
@@ -109,7 +128,9 @@ public class DemandClient {
         // =========================
         // 4. UNARY
         // =========================
-        System.out.println("\n=== UNARY: getDemandForecast ===");
+        String unaryMsg = "\n=== UNARY: getDemandForecast ===";
+        System.out.println(unaryMsg);
+        LogUtil.info(unaryMsg);
 
         DemandPredictionServiceGrpc.DemandPredictionServiceBlockingStub blockingStub =
                 DemandPredictionServiceGrpc.newBlockingStub(channel);
@@ -123,17 +144,26 @@ public class DemandClient {
                                 .build()
                 );
 
-        System.out.println("[FORECAST] SKU: " + forecast.getSku());
+        String forecastMsg = "[FORECAST] SKU: " + forecast.getSku();
+        System.out.println(forecastMsg);
+        LogUtil.info(forecastMsg);
 
-        forecast.getDaysList().forEach(day ->
-                System.out.println("Day " + day.getDayOffset()
-                        + " → " + day.getPredictedUnits())
-        );
+        forecast.getDaysList().forEach(day -> {
+            String dayMsg = "Day " + day.getDayOffset()
+                    + " → " + day.getPredictedUnits();
+
+            System.out.println(dayMsg);
+            LogUtil.info(dayMsg);
+        });
 
         // =========================
         // 5. CLEANUP
         // =========================
         channel.shutdown();
         discovery.close();
+
+        String doneMsg = "✅ Demand client finished";
+        System.out.println(doneMsg);
+        LogUtil.info(doneMsg);
     }
-}
+}    

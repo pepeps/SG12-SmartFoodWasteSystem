@@ -16,9 +16,7 @@ import io.grpc.stub.StreamObserver;
 public class RecommendationServiceImplementation
         extends WasteReductionRecommendationServiceGrpc.WasteReductionRecommendationServiceImplBase {
 
-    // =========================
     // BIDIRECTIONAL STREAMING
-    // =========================
     @Override
     public StreamObserver<OptimisationInput> liveOptimisation(
             StreamObserver<Recommendation> responseObserver) {
@@ -64,9 +62,7 @@ public class RecommendationServiceImplementation
         };
     }
 
-    // =========================
     // UNARY RPC
-    // =========================
     @Override
     public void generateWasteReport(
             ReportRequest request,
