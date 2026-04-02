@@ -51,17 +51,14 @@ public class DemandClient {
         System.out.println(msgFound);
         LogUtil.info(msgFound);
 
-        // =========================
         // 2. CHANNEL
-        // =========================
         ManagedChannel channel = ManagedChannelBuilder
                 .forAddress("localhost", port)
                 .usePlaintext()
                 .build();
 
-        // =========================
         // 3. CLIENT STREAMING
-        // =========================
+        
         String streamingMsg = "\n=== CLIENT STREAMING: uploadSalesData ===";
         System.out.println(streamingMsg);
         LogUtil.info(streamingMsg);
@@ -125,9 +122,7 @@ public class DemandClient {
         requestObserver.onCompleted();
         latch.await(5, TimeUnit.SECONDS);
 
-        // =========================
         // 4. UNARY
-        // =========================
         String unaryMsg = "\n=== UNARY: getDemandForecast ===";
         System.out.println(unaryMsg);
         LogUtil.info(unaryMsg);
@@ -156,9 +151,9 @@ public class DemandClient {
             LogUtil.info(dayMsg);
         });
 
-        // =========================
+        
         // 5. CLEANUP
-        // =========================
+       
         channel.shutdown();
         discovery.close();
 
