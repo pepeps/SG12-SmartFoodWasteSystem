@@ -7,32 +7,61 @@
  *
  * @author joseperez
  */
-
-
 package common.logging;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import javax.swing.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class LogUtil {
 
-    // Logger class to add logs along the app.
-    public static final Logger logger = LoggerFactory.getLogger("SDG12-System");
+    private static JTextArea globalLogArea;
 
+    private static final SimpleDateFormat sdf =
+            new SimpleDateFormat("HH:mm:ss");
 
-    public static void info(String message) {
-        logger.info(message);
+    public static void setLogArea(JTextArea area) {
+        globalLogArea = area;
     }
 
-    public static void error(String message, Throwable throwable) {
-        logger.error(message, throwable);
+    public static void info(String message) {
+        log("INFO", message, null);
     }
 
     public static void warn(String message) {
-        logger.warn(message);
+        log("WARN", message, null);
     }
 
-    public static void debug(String message) {
-        logger.debug(message);
+    public static void error(String message, Throwable t) {
+        log("ERROR", message, t);
+    }
+
+    private static void log(String level, String message, Throwable t) {
+        String timestamp = sdf.format(new Date());
+        String formatted = String.format("[%s] [%s] %s", timestamp, level, message);
+
+        if ("ERROR".equals(level)) {
+            System.err.println(formatted);
+        } else {
+            System.out.println(formatted);
+        }
+
+        JTextArea localArea = globalLogArea;
+        if (localArea != null) {
+            SwingUtilities.invokeLater(() -> {
+                localArea.append(formatted + "\n");
+                localArea.setCaretPosition(localArea.getDocument().getLength());
+            });
+        }
+
+        if (t != null) {
+            t.printStackTrace();
+            if (localArea != null) {
+                SwingUtilities.invokeLater(() -> {
+                    localArea.append("Exception: " + t.getMessage() + "\n");
+                    localArea.setCaretPosition(localArea.getDocument().getLength());
+                });
+            }
+        }
     }
 }
